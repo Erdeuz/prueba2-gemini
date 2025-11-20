@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Alejandro vs Ibuprofeno 600</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        }
+
+        canvas {
+            background-color: #eef;
+            border: 4px solid #333;
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #333;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        .pressure-bar-container {
+            width: 200px;
+            height: 20px;
+            background: #ccc;
+            border: 2px solid #000;
+            margin-top: 5px;
+            position: relative;
+        }
+
+        #pressure-bar-fill {
+            height: 100%;
+            background: linear-gradient(to right, green, yellow, red);
+            width: 0%; /* Empieza en 0 */
+            transition: width 0.2s;
+        }
+
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            border: 2px solid red;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="500" height="600"></canvas>
+        
+        <div id="ui-layer">
+            <div>TIEMPO SOBREVIVIDO: <span id="score">0</span>s</div>
+            <div style="margin-top:10px;">PRESIÓN ARTERIAL (Alejandro):</div>
+            <div class="pressure-bar-container">
+                <div id="pressure-bar-fill"></div>
+            </div>
+            <div id="status-text" style="font-size: 12px; margin-top: 5px;">Normal (12/8)</div>
+        </div>
+
+        <div id="game-over">
+            <h1 style="color: #ff6b6b;">¡ALEJANDRO SE DESMAYÓ!</h1>
+            <p>La presión subió demasiado por el Ibuprofeno.</p>
+            <p>Tiempo total: <span id="final-score">0</span> segundos</p>
+            <button onclick="resetGame()">Intentar de nuevo</button>
+        </div>
+    </div>
+
+    <div style="margin-top: 10px; color: #555;">
+        Usa las flechas <b>Izquierda</b> y <b>Derecha</b> para mover a Alejandro.
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const pressureBar = document.getElementById('pressure-bar-fill');
+        const statusText = document.getElementById('status-text');
+        const gameOverScreen = document.getElementById('game-over');
+
+        // Estado del juego
+        let gameRunning = true;
+        let frameCount = 0;
+        let score = 0;
+        let hits = 0;
+        const maxHits = 5;
+
+        // Configuración de Alejandro
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 70,
+            width: 50,
+            height: 50,
+            speed: 7,
+            color: '#0055ff'
+        };
+
+        // Teclas
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+
+        // Array de pastillas
+        let pills = [];
+
+        // Escuchar teclado
+        document.addEventListener('keydown', (e) => {
+            if(keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if(keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        class Pill {
+            constructor() {
+                this.width = 30;
+                this.height = 50;
+                this.x = Math.random() * (canvas.width - this.width);
+                this.y = -50;
+                this.speed = 3 + Math.random() * 3 + (score * 0.1); // Se vuelven más rápidas con el tiempo
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+
+            draw() {
+                // Dibujar forma de pastilla
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, 15);
+                ctx.fillStyle = '#ff8800'; // Parte naranja
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Parte blanca (mitad inferior)
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y + this.height/2, this.width, this.height/2, {bl: 15, br: 15});
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.stroke();
+
+                // Texto 600
+                ctx.fillStyle = 'black';
+                ctx.font = '10px Arial';
+                ctx.fillText('600', this.x + 6, this.y + 28);
+            }
+        }
+
+        function drawPlayer() {
+            // Cuerpo
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Cara (ojos asustados)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(player.x + 15, player.y + 15, 5, 0, Math.PI * 2);
+            ctx.arc(player.x + 35, player.y + 15, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pupilas
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(player.x + 15, player.y + 15, 2, 0, Math.PI * 2);
+            ctx.arc(player.x + 35, player.y + 15, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Boca (preocupada)
+            ctx.beginPath();
+            ctx.moveTo(player.x + 15, player.y + 35);
+            ctx.quadraticCurveTo(player.x + 25, player.y + 30, player.x + 35, player.y + 35);
+            ctx.stroke();
+
+            // Nombre
+            ctx.fillStyle = '#000';
+            ctx.font = '12px Arial';
+            ctx.fillText('Alejandro', player.x, player.y - 10);
+        }
+
+        function checkCollisions() {
+            for (let i = 0; i < pills.length; i++) {
+                let p = pills[i];
+                
+                // Colisión AABB simple
+                if (
+                    player.x < p.x + p.width &&
+                    player.x + player.width > p.x &&
+                    player.y < p.y + p.height &&
+                    player.y + player.height > p.y
+                ) {
+                    // Impacto
+                    takeDamage();
+                    pills.splice(i, 1);
+                    i--;
+                } else if (p.y > canvas.height) {
+                    // Salió de pantalla
+                    pills.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        function takeDamage() {
+            hits++;
+            updateUI();
+            
+            // Efecto visual de golpe (parpadeo rojo del fondo)
+            canvas.style.backgroundColor = '#ffcccc';
+            setTimeout(() => canvas.style.backgroundColor = '#eef', 100);
+
+            if (hits >= maxHits) {
+                gameOver();
+            }
+        }
+
+        function updateUI() {
+            // Actualizar barra de presión
+            let percentage = (hits / maxHits) * 100;
+            pressureBar.style.width = percentage + '%';
+
+            // Texto de estado médico
+            const states = [
+                "Normal (12/8)", 
+                "Elevada (13/8)", 
+                "Hipertensión G1 (14/9)", 
+                "Hipertensión G2 (16/10)", 
+                "CRISIS HIPERTENSIVA (18/12)", 
+                "DESMAYO INMINENTE"
+            ];
+            statusText.innerText = states[Math.min(hits, 5)];
+            statusText.style.color = hits > 2 ? 'red' : 'black';
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            gameOverScreen.style.display = 'block';
+            finalScoreEl.innerText = score;
+            
+            // Dibujar a Alejandro desmayado (girado)
+            ctx.save();
+            ctx.translate(player.x + player.width/2, player.y + player.height/2);
+            ctx.rotate(Math.PI / 2); // Girar 90 grados
+            ctx.fillStyle = player.color;
+            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+            ctx.restore();
+        }
+
+        function resetGame() {
+            hits = 0;
+            score = 0;
+            pills = [];
+            gameRunning = true;
+            gameOverScreen.style.display = 'none';
+            scoreEl.innerText = '0';
+            player.x = canvas.width / 2 - 25;
+            updateUI();
+            loop();
+        }
+
+        function update() {
+            // Mover jugador
+            if (keys.ArrowLeft && player.x > 0) player.x -= player.speed;
+            if (keys.ArrowRight && player.x < canvas.width - player.width) player.x += player.speed;
+
+            // Generar enemigos (cada 60 frames aprox, menos si avanza el score)
+            let spawnRate = Math.max(20, 60 - score); 
+            if (frameCount % spawnRate === 0) {
+                pills.push(new Pill());
+            }
+
+            // Actualizar enemigos
+            pills.forEach(p => p.update());
+
+            // Tiempo
+            if (frameCount % 60 === 0) {
+                score++;
+                scoreEl.innerText = score;
+            }
+
+            checkCollisions();
+            frameCount++;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if(gameRunning) {
+                drawPlayer();
+            }
+            
+            pills.forEach(p => p.draw());
+        }
+
+        function loop() {
+            if (!gameRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // Iniciar
+        loop();
+
+    </script>
+</body>
+</html>
