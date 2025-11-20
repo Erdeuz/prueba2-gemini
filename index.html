@@ -6,7 +6,7 @@
     <style>
         body {
             margin: 0;
-            background-color: #333; /* Fondo más oscuro para contraste */
+            background-color: #222;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
@@ -19,11 +19,11 @@
 
         #game-container {
             position: relative;
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            box-shadow: 0 0 30px rgba(0,0,0,0.6);
         }
 
         canvas {
-            background-color: #eef; /* Fondo del "mundo real" */
+            background-color: #eef;
             border: 4px solid #000;
             display: block;
         }
@@ -35,9 +35,10 @@
             color: #333;
             font-weight: bold;
             pointer-events: none;
-            background: rgba(255, 255, 255, 0.7);
-            padding: 5px;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 8px;
             border-radius: 5px;
+            border: 1px solid #999;
         }
 
         .pressure-bar-container {
@@ -56,21 +57,22 @@
             transition: width 0.2s;
         }
 
-        /* Pantallas de estado (Game Over / Win) */
+        /* Pantallas de estado */
         .overlay-screen {
             display: none;
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(10, 10, 10, 0.98);
             color: white;
             padding: 30px;
             text-align: center;
             border-radius: 10px;
             border: 2px solid #fff;
-            width: 80%;
-            max-width: 400px;
+            width: 85%;
+            max-width: 450px;
+            z-index: 10;
         }
 
         button {
@@ -86,7 +88,6 @@
         }
         button:hover { background: #218838; }
         button.retry { background: #dc3545; }
-        button.retry:hover { background: #c82333; }
 
     </style>
 </head>
@@ -101,42 +102,46 @@
             <div class="pressure-bar-container">
                 <div id="pressure-bar-fill"></div>
             </div>
-            <div id="status-text" style="font-size: 12px; margin-top: 5px;">Estable</div>
+            <div id="status-text" style="font-size: 14px; margin-top: 5px;">120/80 mmHg</div>
         </div>
 
         <div id="game-over" class="overlay-screen">
-            <h1 style="color: #ff6b6b;">¡ALEJANDRO SE DESMAYÓ!</h1>
-            <p>La presión subió demasiado.</p>
-            <button class="retry" onclick="resetGame()">Reanimar y reintentar</button>
+            <h1 style="color: #ff4444;">¡ALEJANDRO CAYÓ!</h1>
+            <p>Presión arterial crítica: <span id="final-bp" style="color:red; font-weight:bold;"></span></p>
+            <p>No aguantaste el Ibuprofeno.</p>
+            <button class="retry" onclick="resetGame()">Intentar de nuevo</button>
         </div>
 
-        <div id="game-win" class="overlay-screen" style="border-color: gold;">
-            <h1 style="color: gold; text-transform: uppercase;">¡SOBREVIVISTE!</h1>
-            <p style="font-size: 18px;">Lograste aguantar 1 minuto sin que te estalle la cabeza.</p>
-            <hr style="border-color: #555;">
-            <p>Mira quién vino a felicitarte:</p>
-            <canvas id="kratosCanvas" width="200" height="150" style="margin: 0 auto; background: #222; border: 1px solid #555;"></canvas>
-            <p style="font-style: italic; color: #aaa;">"Has luchado bien, muchacho."</p>
+        <div id="game-win" class="overlay-screen" style="border-color: #c0a040;">
+            <h1 style="color: #ffd700; text-shadow: 0 0 10px #ff8800;">¡MISIÓN CUMPLIDA!</h1>
+            <p>Sobreviviste 60 segundos sin un ACV.</p>
+            
+            <div style="margin: 10px auto; border: 2px solid #555; width: 200px; height: 180px;">
+                <canvas id="kratosCanvas" width="200" height="180" style="background: #111;"></canvas>
+            </div>
+            
+            <p style="font-style: italic; color: #ccc; font-family: serif; font-size: 1.1em;">"Eres digno, Alejandro."</p>
             <button onclick="resetGame()">Jugar otra vez</button>
         </div>
     </div>
 
     <div style="margin-top: 15px; text-align: center; color: #aaa;">
-        Esquiva el Ibuprofeno 600.<br>
-        Sobrevive <b>60 segundos</b> para conocer al Dios de la Guerra.
+        Esquiva para mantener tu presión baja.<br>
+        Llega a 60s para conocer al Dios de la Guerra.
     </div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // UI Elements
+        // Elementos UI
         const scoreEl = document.getElementById('score');
         const pressureBar = document.getElementById('pressure-bar-fill');
         const statusText = document.getElementById('status-text');
         const gameOverScreen = document.getElementById('game-over');
         const gameWinScreen = document.getElementById('game-win');
         const uiLayer = document.getElementById('ui-layer');
+        const finalBpEl = document.getElementById('final-bp');
 
         // Configuración del Juego
         let gameRunning = true;
@@ -144,16 +149,16 @@
         let score = 0;
         let hits = 0;
         const maxHits = 5;
-        const winTime = 60; // Tiempo para ganar
+        const winTime = 60;
 
         // Alejandro (Jugador)
         const player = {
             x: canvas.width / 2 - 20,
             y: canvas.height - 90,
             width: 40,
-            height: 80, // Altura humana
+            height: 80,
             speed: 6,
-            colorShirt: '#0055ff',
+            colorShirt: '#0044cc', // Azul un poco más serio
             colorSkin: '#ffccaa'
         };
 
@@ -167,7 +172,7 @@
         document.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
         document.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
 
-        // --- CLASES Y FUNCIONES ---
+        // --- LÓGICA DE JUEGO ---
 
         class Pill {
             constructor() {
@@ -175,8 +180,7 @@
                 this.height = 45;
                 this.x = Math.random() * (canvas.width - this.width);
                 this.y = -50;
-                // Velocidad aumenta ligeramente con el tiempo
-                this.speed = 3 + Math.random() * 3 + (score * 0.05);
+                this.speed = 3.5 + Math.random() * 3 + (score * 0.08);
             }
 
             update() {
@@ -184,21 +188,23 @@
             }
 
             draw() {
-                // Cápsula Naranja/Blanco
+                // Cápsula
                 ctx.beginPath();
                 ctx.roundRect(this.x, this.y, this.width, this.height, 10);
-                ctx.fillStyle = '#ff8800'; 
+                ctx.fillStyle = '#ff6600'; // Naranja fuerte
                 ctx.fill();
-                ctx.strokeStyle = '#333';
+                ctx.strokeStyle = '#222';
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
+                // Parte blanca
                 ctx.beginPath();
                 ctx.roundRect(this.x, this.y + this.height/2, this.width, this.height/2, {bl: 10, br: 10});
                 ctx.fillStyle = '#ffffff';
                 ctx.fill();
                 ctx.stroke();
 
+                // Texto 600
                 ctx.fillStyle = 'black';
                 ctx.font = 'bold 9px Arial';
                 ctx.fillText('600', this.x + 4, this.y + 25);
@@ -206,124 +212,149 @@
         }
 
         function drawHumanPlayer(x, y, w, h, isFainted = false) {
-            // Guardar contexto para rotar si está desmayado
             ctx.save();
             if (isFainted) {
+                // Rotar si está desmayado
                 ctx.translate(x + w/2, y + h/2);
                 ctx.rotate(Math.PI / 2);
                 ctx.translate(-(x + w/2), -(y + h/2));
             }
 
             // 1. Piernas
-            ctx.fillStyle = '#222';
-            ctx.fillRect(x + 5, y + h - 30, 12, 30); // Izq
-            ctx.fillRect(x + w - 17, y + h - 30, 12, 30); // Der
+            ctx.fillStyle = '#1a1a1a'; // Pantalón oscuro
+            ctx.fillRect(x + 6, y + h - 35, 10, 35); // Izq
+            ctx.fillRect(x + w - 16, y + h - 35, 10, 35); // Der
 
             // 2. Cuerpo (Remera)
             ctx.fillStyle = player.colorShirt;
-            ctx.fillRect(x, y + 25, w, 45);
+            ctx.fillRect(x, y + 25, w, 40);
 
-            // 3. Brazos (Simples)
+            // TEXTO REMERA "ALEJANDRO"
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 7px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('ALEJANDRO', x + w/2, y + 48); 
+
+            // 3. Brazos
             ctx.fillStyle = player.colorSkin;
-            ctx.fillRect(x - 8, y + 28, 8, 25); // Brazo Izq
-            ctx.fillRect(x + w, y + 28, 8, 25); // Brazo Der
+            ctx.fillRect(x - 6, y + 28, 6, 22); 
+            ctx.fillRect(x + w, y + 28, 6, 22); 
 
-            // 4. Cabeza
+            // 4. Cabeza (Elipse para que sea menos cachetón)
             ctx.beginPath();
-            ctx.arc(x + w/2, y + 15, 18, 0, Math.PI * 2);
+            // x, y, radioX, radioY, rotacion, startAngle, endAngle
+            ctx.ellipse(x + w/2, y + 14, 13, 17, 0, 0, Math.PI * 2);
             ctx.fillStyle = player.colorSkin;
             ctx.fill();
 
-            // 5. Pelo (Negro, estilo corto)
+            // 5. Pelo
             ctx.beginPath();
-            ctx.arc(x + w/2, y + 12, 18, Math.PI, 0); // Semicírculo superior
-            ctx.fillStyle = '#111';
+            ctx.ellipse(x + w/2, y + 12, 13, 16, 0, Math.PI, 0); 
+            ctx.fillStyle = '#221100'; // Castaño oscuro
             ctx.fill();
 
             // 6. Cara
             ctx.fillStyle = '#000';
-            // Ojos
-            ctx.fillRect(x + w/2 - 6, y + 12, 3, 3);
-            ctx.fillRect(x + w/2 + 3, y + 12, 3, 3);
-            // Boca (preocupada si hay hits, sonriendo si no)
+            // Ojos simples
+            ctx.fillRect(x + w/2 - 5, y + 12, 3, 3);
+            ctx.fillRect(x + w/2 + 2, y + 12, 3, 3);
+            
+            // Boca
             ctx.beginPath();
             if (hits > 2) {
-                // Boca asustada (O)
-                ctx.arc(x + w/2, y + 22, 3, 0, Math.PI*2);
+                ctx.arc(x + w/2, y + 24, 2, 0, Math.PI*2); // Boca O
             } else {
-                // Boca seria (linea)
-                ctx.moveTo(x + w/2 - 3, y + 22);
-                ctx.lineTo(x + w/2 + 3, y + 22);
+                ctx.moveTo(x + w/2 - 3, y + 24);
+                ctx.lineTo(x + w/2 + 3, y + 24); // Boca seria
             }
             ctx.stroke();
 
             ctx.restore();
         }
 
-        // Función especial para dibujar a Kratos en el Canvas de la victoria
         function drawKratosFace() {
             const kCanvas = document.getElementById('kratosCanvas');
             const kCtx = kCanvas.getContext('2d');
             const kW = kCanvas.width;
             const kH = kCanvas.height;
+            const cx = kW / 2;
+            const cy = kH / 2 - 10;
 
-            // Fondo oscuro
-            kCtx.fillStyle = '#1a1a1a';
+            // Fondo
+            kCtx.fillStyle = '#0f0f0f';
             kCtx.fillRect(0, 0, kW, kH);
 
-            const centerX = kW / 2;
-            const centerY = kH / 2;
-
-            // Cabeza (Piel Pálida Ceniza)
+            // --- Cabeza (Forma más angular/fina) ---
             kCtx.beginPath();
-            kCtx.arc(centerX, centerY - 10, 40, 0, Math.PI * 2);
-            kCtx.fillStyle = '#e6e6e6'; // Blanco ceniza
+            kCtx.moveTo(cx - 35, cy - 60); // Top Left
+            kCtx.lineTo(cx + 35, cy - 60); // Top Right
+            kCtx.lineTo(cx + 38, cy - 10); // Pómulo Der
+            kCtx.lineTo(cx + 20, cy + 50); // Mandíbula Der
+            kCtx.lineTo(cx, cy + 60);      // Mentón
+            kCtx.lineTo(cx - 20, cy + 50); // Mandíbula Izq
+            kCtx.lineTo(cx - 38, cy - 10); // Pómulo Izq
+            kCtx.closePath();
+            kCtx.fillStyle = '#e8e8e8'; // Piel ceniza pálida
             kCtx.fill();
 
-            // Tatuaje Rojo (La marca característica)
+            // --- Tatuaje Rojo (Más definido) ---
+            kCtx.save();
             kCtx.beginPath();
-            kCtx.moveTo(centerX - 15, centerY - 50); // Frente arriba
-            kCtx.lineTo(centerX - 10, centerY + 10); // Ojo
-            kCtx.strokeStyle = '#aa0000';
-            kCtx.lineWidth = 8;
+            kCtx.moveTo(cx - 15, cy - 60); // Inicio frente
+            kCtx.lineTo(cx - 10, cy + 20); // Pasa por el ojo
+            kCtx.lineCap = 'round';
+            kCtx.strokeStyle = '#8a0000';
+            kCtx.lineWidth = 10;
             kCtx.stroke();
+            kCtx.restore();
 
-            // Ojos (Serios)
+            // --- Barba (Puntiaguda y negra) ---
+            kCtx.beginPath();
+            kCtx.moveTo(cx - 38, cy - 5); // Patilla izq
+            kCtx.quadraticCurveTo(cx - 30, cy + 40, cx, cy + 80); // Punta barba
+            kCtx.quadraticCurveTo(cx + 30, cy + 40, cx + 38, cy - 5); // Patilla der
+            // Zona bigote
+            kCtx.lineTo(cx + 25, cy + 20);
+            kCtx.lineTo(cx, cy + 25); // Debajo labio
+            kCtx.lineTo(cx - 25, cy + 20);
+            kCtx.closePath();
+            kCtx.fillStyle = '#111';
+            kCtx.fill();
+
+            // --- Rasgos ---
+            // Ojos hundidos
             kCtx.fillStyle = '#000';
-            kCtx.fillRect(centerX - 20, centerY - 15, 8, 4); // Izq
-            kCtx.fillRect(centerX + 12, centerY - 15, 8, 4); // Der
+            // Ojo Izq (sobre el tatuaje)
+            kCtx.fillRect(cx - 22, cy - 10, 10, 5); 
+            // Ojo Der
+            kCtx.fillRect(cx + 12, cy - 10, 10, 5);
 
-            // Barba (Estilo Nórdico/Espartano)
+            // Brillo agresivo en los ojos
+            kCtx.fillStyle = '#fff';
+            kCtx.fillRect(cx - 18, cy - 9, 2, 2);
+            kCtx.fillRect(cx + 16, cy - 9, 2, 2);
+
+            // Cejas fruncidas (V shape)
             kCtx.beginPath();
-            kCtx.moveTo(centerX - 40, centerY); // Oreja izq
-            kCtx.quadraticCurveTo(centerX, centerY + 60, centerX + 40, centerY); // Barbilla curva
-            kCtx.lineTo(centerX + 40, centerY - 10);
-            kCtx.lineTo(centerX + 30, centerY + 20); // Bigote conexión
-            kCtx.lineTo(centerX - 30, centerY + 20);
-            kCtx.lineTo(centerX - 40, centerY - 10);
-            kCtx.fillStyle = '#221100'; // Marrón oscuro / negro
-            kCtx.fill();
-            
-            // Cejas enojadas
-            kCtx.beginPath();
-            kCtx.moveTo(centerX - 25, centerY - 25);
-            kCtx.lineTo(centerX - 5, centerY - 18);
-            kCtx.moveTo(centerX + 5, centerY - 18);
-            kCtx.lineTo(centerX + 25, centerY - 25);
-            kCtx.strokeStyle = '#000';
-            kCtx.lineWidth = 3;
+            kCtx.moveTo(cx - 30, cy - 20);
+            kCtx.lineTo(cx - 5, cy - 12);
+            kCtx.moveTo(cx + 5, cy - 12);
+            kCtx.lineTo(cx + 30, cy - 20);
+            kCtx.strokeStyle = '#111';
+            kCtx.lineWidth = 4;
             kCtx.stroke();
 
-            // Texto en el canvas pequeño
-            kCtx.fillStyle = '#fff';
-            kCtx.font = '10px sans-serif';
-            kCtx.fillText("GOD OF WAR", centerX - 30, kH - 10);
+            // Nariz
+            kCtx.beginPath();
+            kCtx.moveTo(cx, cy - 12);
+            kCtx.lineTo(cx - 5, cy + 10);
+            kCtx.lineTo(cx + 5, cy + 10);
+            kCtx.fill();
         }
 
         function checkCollisions() {
             for (let i = 0; i < pills.length; i++) {
                 let p = pills[i];
-                // Colisión simple (AABB)
                 if (player.x < p.x + p.width &&
                     player.x + player.width > p.x &&
                     player.y < p.y + p.height &&
@@ -339,11 +370,21 @@
             }
         }
 
+        // Array de Presiones para mostrar como puntos de vida
+        const pressures = [
+            "120/80",   // 0 hits (Normal)
+            "130/85",   // 1 hit
+            "145/90",   // 2 hits
+            "160/100",  // 3 hits
+            "180/110",  // 4 hits (Peligro)
+            "220/140"   // 5 hits (Muerte)
+        ];
+
         function takeDamage() {
             hits++;
             updateUI();
             
-            // Efecto de daño visual
+            // Feedback visual de daño
             canvas.style.backgroundColor = '#ffaaaa';
             setTimeout(() => canvas.style.backgroundColor = '#eef', 100);
 
@@ -356,24 +397,29 @@
             let percentage = (hits / maxHits) * 100;
             pressureBar.style.width = percentage + '%';
             
-            const states = ["Normal", "Elevada", "Hipertensión G1", "Hipertensión G2", "CRISIS", "DESMAYO"];
-            statusText.innerText = states[Math.min(hits, 5)];
-            if(hits > 2) statusText.style.color = 'red';
-            else statusText.style.color = 'black';
+            // Usar el array de presiones numéricas
+            let currentBP = pressures[Math.min(hits, pressures.length - 1)] + " mmHg";
+            statusText.innerText = currentBP;
+            
+            // Cambiar color según gravedad
+            if(hits === 0) statusText.style.color = 'green';
+            else if(hits < 3) statusText.style.color = '#cc9900'; // Naranja oscuro
+            else statusText.style.color = 'red';
         }
 
         function triggerGameOver() {
             gameRunning = false;
+            finalBpEl.innerText = pressures[pressures.length - 1]; // Mostrar la presión final
             gameOverScreen.style.display = 'block';
             uiLayer.style.display = 'none';
-            draw(); // Dibujar una ultima vez para mostrar a Alejandro desmayado
+            draw(); 
         }
 
         function triggerWin() {
             gameRunning = false;
             gameWinScreen.style.display = 'block';
             uiLayer.style.display = 'none';
-            drawKratosFace(); // Generar la cara de Kratos
+            drawKratosFace(); 
         }
 
         function resetGame() {
@@ -391,24 +437,19 @@
         }
 
         function update() {
-            // Movimiento
             if (keys.ArrowLeft && player.x > 0) player.x -= player.speed;
             if (keys.ArrowRight && player.x < canvas.width - player.width) player.x += player.speed;
 
-            // Generar pastillas
-            let spawnRate = Math.max(20, 50 - (score / 2)); 
+            let spawnRate = Math.max(15, 50 - (score * 0.6)); 
             if (frameCount % Math.floor(spawnRate) === 0) {
                 pills.push(new Pill());
             }
 
             pills.forEach(p => p.update());
 
-            // Tiempo
             if (frameCount % 60 === 0) {
                 score++;
                 scoreEl.innerText = score;
-                
-                // CONDICIÓN DE VICTORIA: 60 segundos
                 if (score >= winTime) {
                     triggerWin();
                     return;
@@ -421,13 +462,8 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Dibujar jugador (Humano)
-            // Si el juego no corre y hay hits, asumimos desmayo para el dibujo final
             let isFainted = (!gameRunning && hits >= maxHits);
             drawHumanPlayer(player.x, player.y, player.width, player.height, isFainted);
-            
-            // Dibujar pastillas
             pills.forEach(p => p.draw());
         }
 
@@ -438,7 +474,6 @@
             requestAnimationFrame(loop);
         }
 
-        // Iniciar
         loop();
 
     </script>
